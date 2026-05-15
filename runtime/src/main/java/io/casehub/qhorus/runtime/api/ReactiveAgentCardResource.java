@@ -11,17 +11,19 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import io.casehub.qhorus.runtime.config.QhorusConfig;
-import io.quarkus.arc.properties.IfBuildProperty;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Reactive mirror of {@link AgentCardResource} — active only when
- * {@code casehub.qhorus.reactive.enabled=true}.
+ * a reactive datasource is configured (build-time).
+ * In blocking-only deployments, this resource and its endpoints are
+ * excluded from REST registration, preventing duplicates with {@link AgentCardResource}.
  * Returns {@code Uni<Response>} so the Vert.x event loop is not blocked.
  */
-@IfBuildProperty(name = "casehub.qhorus.reactive.enabled", stringValue = "true")
 @Path("/.well-known")
 @ApplicationScoped
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 public class ReactiveAgentCardResource {
 
     @Inject

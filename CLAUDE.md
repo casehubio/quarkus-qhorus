@@ -196,8 +196,8 @@ casehub-qhorus/
 │       │   └── ReactiveLedgerWriteService.java      — @Alternative reactive mirror of LedgerWriteService
 │       ├── mcp/
 │       │   ├── QhorusMcpToolsBase.java  — abstract base: records, mappers (toLedgerEntryMap, toMessageSummary, etc.), validators; ledger query response records (ObligationChainSummary, CausalChainEntry, StalledObligation, ObligationStats, TelemetrySummary, ToolTelemetry)
-│       │   ├── QhorusMcpTools.java      — blocking @Tool methods (~50); @UnlessBuildProperty(reactive.enabled); create_channel now accepts allowed_types as 9th optional param
-│       │   └── ReactiveQhorusMcpTools.java — reactive @Tool methods returning Uni<T>; @IfBuildProperty(reactive.enabled); create_channel mirrors allowed_types param; delete_channel (reactive Uni<DeleteChannelResult>), get_instance and get_message (@Blocking)
+│       │   ├── QhorusMcpTools.java      — blocking @Tool methods (~50); @UnlessBuildProperty(quarkus.datasource.qhorus.reactive); create_channel now accepts allowed_types as 9th optional param
+│       │   └── ReactiveQhorusMcpTools.java — reactive @Tool methods returning Uni<T>; @IfBuildProperty(quarkus.datasource.qhorus.reactive); create_channel mirrors allowed_types param; delete_channel (reactive Uni<DeleteChannelResult>), get_instance and get_message (@Blocking)
 │       ├── watchdog/
 │       │   ├── Watchdog.java            — PanacheEntity (condition-based alert registrations)
 │       │   ├── WatchdogEvaluationService.java — condition evaluation logic
@@ -216,7 +216,6 @@ casehub-qhorus/
 │           └── ReactiveA2AResource.java       — reactive A2A endpoints (@IfBuildProperty)
 ├── deployment/                          — Extension deployment (build-time) module
 │   └── src/main/java/io/casehub/qhorus/deployment/
-│       ├── QhorusBuildConfig.java       — @ConfigRoot(BUILD_TIME): casehub.qhorus.reactive.enabled
 │       └── QhorusProcessor.java         — @BuildStep: FeatureBuildItem + reactive bean activation
 ├── testing/                             — InMemory*Store + InMemoryReactive*Store (@Alternative @Priority(1)) for consumer unit tests
 ├── examples/
@@ -268,7 +267,7 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/graalvm-25.jdk/Contents/Home \
 - Tests run against a **named 'qhorus' datasource** (`quarkus.datasource.qhorus.*`) — the Qhorus named PU. A default datasource is also configured in test properties to satisfy casehub-ledger library beans that inject `@Default EntityManager` (library code; cannot be changed). Both PUs require schema generation: `quarkus.hibernate-orm.database.generation=drop-and-create` (default PU) and `quarkus.hibernate-orm.qhorus.database.generation=drop-and-create` (qhorus PU). `quarkus.datasource.qhorus.reactive=false` suppresses `FastBootHibernateReactivePersistenceProvider` for the named PU.
 - `Reactive*Store` / `InMemoryReactive*Store` follow the same seam as blocking stores. Unit tests use `InMemoryReactive*Store` from `casehub-qhorus-testing` via direct instantiation (no CDI) and `.await().indefinitely()` to unwrap. `ReactiveJpa*Store` integration tests use `@QuarkusTest @TestProfile @RunOnVertxContext UniAsserter` with `Panache.withTransaction()` wrapping mutations.
 - Reactive JPA integration tests cannot use H2 — H2 has no native async driver and `vertx-jdbc-client` alone does not register a Quarkus reactive pool factory. Only `quarkus-reactive-pg-client` (PostgreSQL + Docker) enables reactive `@QuarkusTest`. Write reactive JPA tests as `@Disabled` until Docker is available.
-- `@IfBuildProperty` and `@UnlessBuildProperty` are BUILD-TIME annotations — setting `casehub.qhorus.reactive.enabled=true` in a `QuarkusTestProfile.getConfigOverrides()` does NOT activate or deactivate those beans. Only the build-time value matters. Tests that need to exercise `ReactiveQhorusMcpTools` must be compiled with the property set, which is not currently supported in the CI H2 test environment.
+- `@IfBuildProperty` and `@UnlessBuildProperty` are BUILD-TIME annotations — setting `quarkus.datasource.qhorus.reactive=true` in a `QuarkusTestProfile.getConfigOverrides()` does NOT activate or deactivate those beans. Only the build-time value matters (set in `application.properties` at augmentation time). Tests that need to exercise `ReactiveQhorusMcpTools` must have `quarkus.datasource.qhorus.reactive=true` set in their `application.properties`, which requires a reactive datasource (PostgreSQL + Docker) not available in CI H2 environment.
 - `ReactiveTestProfile` (in `runtime/src/test/.../service/`) activates reactive `@Alternative` service beans via `quarkus.arc.selected-alternatives`. Use it only on `@Disabled` reactive service runners — calling `Panache.withTransaction()` on H2 without a reactive driver will fail at runtime, even with the profile active.
 - Reactive service tests (`Reactive*ServiceTest`) are all `@Disabled` — reactive services call `Panache.withTransaction()` which needs a native reactive datasource driver. Enable by removing `@Disabled` and adding PostgreSQL Dev Services to `ReactiveTestProfile` when Docker is available.
 - Store contract tests use abstract base classes (`*StoreContractTest` in `testing/src/test/.../contract/`) with two concrete runners each: blocking (`InMemory*StoreTest`) and reactive (`InMemoryReactive*StoreTest`). The reactive runner wraps every factory method with `.await().indefinitely()`. Assertion code is identical across both stacks (inherited from base).

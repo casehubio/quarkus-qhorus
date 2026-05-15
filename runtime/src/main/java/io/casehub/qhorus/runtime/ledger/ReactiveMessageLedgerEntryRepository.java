@@ -16,6 +16,7 @@ import io.casehub.ledger.runtime.model.LedgerAttestation;
 import io.casehub.ledger.runtime.model.LedgerEntry;
 import io.casehub.ledger.runtime.repository.ReactiveLedgerEntryRepository;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Reactive mirror of {@link MessageLedgerEntryRepository}.
@@ -33,6 +34,7 @@ import io.smallrye.mutiny.Uni;
  * Refs #105, Epic #99.
  */
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 public class ReactiveMessageLedgerEntryRepository implements ReactiveLedgerEntryRepository {
 

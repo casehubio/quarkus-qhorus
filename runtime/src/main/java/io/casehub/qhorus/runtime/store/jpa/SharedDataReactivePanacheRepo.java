@@ -7,6 +7,7 @@ import jakarta.enterprise.inject.Alternative;
 
 import io.casehub.qhorus.runtime.data.SharedData;
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Minimal reactive Panache repository for {@link SharedData}.
@@ -24,6 +25,7 @@ import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
  * Refs #74.
  */
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 class SharedDataReactivePanacheRepo implements PanacheRepositoryBase<SharedData, UUID> {
 }

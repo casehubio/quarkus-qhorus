@@ -9,7 +9,6 @@ import io.casehub.ledger.api.model.ActorType;
 import io.casehub.ledger.api.model.ActorTypeResolver;
 import io.casehub.qhorus.runtime.instance.InstanceService;
 import io.quarkus.arc.properties.UnlessBuildProperty;
-
 /**
  * Resolves {@link ActorType} for inbound A2A messages.
  *
@@ -19,7 +18,7 @@ import io.quarkus.arc.properties.UnlessBuildProperty;
  * ActorTypeResolver on agentId (covers persona + system), default HUMAN.
  */
 @ApplicationScoped
-@UnlessBuildProperty(name = "casehub.qhorus.reactive.enabled", stringValue = "true", enableIfMissing = true)
+@UnlessBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true", enableIfMissing = true)
 public class A2AActorResolver {
 
     @Inject

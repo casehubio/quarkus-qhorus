@@ -7,6 +7,7 @@ import jakarta.enterprise.inject.Alternative;
 
 import io.casehub.qhorus.runtime.watchdog.Watchdog;
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Minimal reactive Panache repository for {@link Watchdog}.
@@ -24,6 +25,7 @@ import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
  * Refs #74.
  */
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 class WatchdogReactivePanacheRepo implements PanacheRepositoryBase<Watchdog, UUID> {
 }

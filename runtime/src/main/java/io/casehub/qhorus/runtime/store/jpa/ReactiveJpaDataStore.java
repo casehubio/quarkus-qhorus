@@ -15,8 +15,10 @@ import io.casehub.qhorus.runtime.store.ReactiveDataStore;
 import io.casehub.qhorus.runtime.store.query.DataQuery;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 public class ReactiveJpaDataStore implements ReactiveDataStore {
 

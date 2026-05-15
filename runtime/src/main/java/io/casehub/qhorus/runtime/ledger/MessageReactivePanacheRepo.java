@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Alternative;
 
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Minimal reactive Panache repository for {@link MessageLedgerEntry}.
@@ -20,6 +21,7 @@ import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
  * Refs #105, Epic #99.
  */
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 class MessageReactivePanacheRepo implements PanacheRepositoryBase<MessageLedgerEntry, UUID> {
 }

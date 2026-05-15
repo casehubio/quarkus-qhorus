@@ -21,6 +21,7 @@ import io.casehub.qhorus.runtime.channel.Channel;
 import io.casehub.qhorus.runtime.message.Message;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Reactive mirror of {@link LedgerWriteService}.
@@ -36,6 +37,7 @@ import io.smallrye.mutiny.Uni;
  * Refs #105, Epic #99.
  */
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 public class ReactiveLedgerWriteService {
 

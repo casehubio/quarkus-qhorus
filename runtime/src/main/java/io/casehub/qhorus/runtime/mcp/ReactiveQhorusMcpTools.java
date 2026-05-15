@@ -49,10 +49,10 @@ import io.casehub.qhorus.runtime.message.MessageTypePolicy;
 import io.casehub.qhorus.runtime.store.CommitmentStore;
 import io.casehub.qhorus.runtime.store.ReactiveMessageStore;
 import io.casehub.qhorus.runtime.watchdog.ReactiveWatchdogService;
-import io.quarkus.arc.properties.IfBuildProperty;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Reactive implementation of Qhorus MCP tools.
@@ -64,10 +64,15 @@ import io.smallrye.mutiny.Uni;
  * All business logic exceptions ({@link IllegalArgumentException} and
  * {@link IllegalStateException}) are automatically wrapped in
  * {@link io.quarkiverse.mcp.server.ToolCallException} by the quarkus-mcp-server interceptor.
+ *
+ * <p>
+ * Active only when {@code quarkus.datasource.qhorus.reactive=true} is set at build time.
+ * When that property is absent or false, this bean is excluded from the CDI container and the
+ * blocking {@link QhorusMcpTools} is active instead.
  */
 @WrapBusinessError({ IllegalArgumentException.class, IllegalStateException.class })
-@IfBuildProperty(name = "casehub.qhorus.reactive.enabled", stringValue = "true")
 @ApplicationScoped
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 public class ReactiveQhorusMcpTools extends QhorusMcpToolsBase {
 
     private static final Logger LOG = Logger.getLogger(ReactiveQhorusMcpTools.class);

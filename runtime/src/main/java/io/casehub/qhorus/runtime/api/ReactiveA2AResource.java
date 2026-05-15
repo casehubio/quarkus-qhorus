@@ -26,15 +26,18 @@ import io.casehub.qhorus.runtime.message.Commitment;
 import io.casehub.qhorus.runtime.message.CommitmentService;
 import io.casehub.qhorus.runtime.message.Message;
 import io.casehub.qhorus.runtime.message.MessageService;
-import io.quarkus.arc.properties.IfBuildProperty;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 /**
  * Reactive mirror of {@link A2AResource} — active only when
- * {@code casehub.qhorus.reactive.enabled=true}.
+ * a reactive datasource is configured (build-time).
  *
  * <p>
+ * In blocking-only deployments, this resource and its endpoints are
+ * excluded from REST registration, preventing duplicates with {@link A2AResource}.
+ *
  * {@code POST /a2a/message:send} delegates to {@link ReactiveA2AChannelBackend} and returns
  * {@code Uni<Response>}. {@code GET /a2a/tasks/{id}} uses {@code @Blocking} with
  * the blocking message / channel services because {@code findAllByCorrelationId}
@@ -42,10 +45,10 @@ import io.smallrye.mutiny.Uni;
  *
  * @see A2AResource
  */
-@IfBuildProperty(name = "casehub.qhorus.reactive.enabled", stringValue = "true")
 @Path("/a2a")
 @ApplicationScoped
 @Produces(MediaType.APPLICATION_JSON)
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 public class ReactiveA2AResource {
 
     private static final Response A2A_DISABLED = Response

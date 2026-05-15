@@ -14,8 +14,10 @@ import io.casehub.qhorus.runtime.store.query.WatchdogQuery;
 import io.casehub.qhorus.runtime.watchdog.Watchdog;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 public class ReactiveJpaWatchdogStore implements ReactiveWatchdogStore {
 

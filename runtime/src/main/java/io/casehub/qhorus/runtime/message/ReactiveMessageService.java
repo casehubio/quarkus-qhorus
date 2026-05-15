@@ -16,8 +16,10 @@ import io.casehub.qhorus.runtime.store.ReactiveMessageStore;
 import io.casehub.qhorus.runtime.store.query.MessageQuery;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
+import io.quarkus.arc.properties.IfBuildProperty;
 
 @Alternative
+@IfBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true")
 @ApplicationScoped
 public class ReactiveMessageService {
 

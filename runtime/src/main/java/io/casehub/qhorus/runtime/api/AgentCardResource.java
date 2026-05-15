@@ -11,7 +11,6 @@ import jakarta.ws.rs.core.MediaType;
 
 import io.casehub.qhorus.runtime.config.QhorusConfig;
 import io.quarkus.arc.properties.UnlessBuildProperty;
-
 /**
  * Serves the A2A Agent Card at the standard well-known URL.
  * Makes every Qhorus deployment self-describing and discoverable
@@ -19,9 +18,9 @@ import io.quarkus.arc.properties.UnlessBuildProperty;
  *
  * @see <a href="https://google.github.io/A2A/">Google A2A Protocol</a>
  */
-@UnlessBuildProperty(name = "casehub.qhorus.reactive.enabled", stringValue = "true", enableIfMissing = true)
 @Path("/.well-known")
 @ApplicationScoped
+@UnlessBuildProperty(name = "quarkus.datasource.qhorus.reactive", stringValue = "true", enableIfMissing = true)
 public class AgentCardResource {
 
     @Inject
