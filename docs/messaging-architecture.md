@@ -161,6 +161,28 @@ Multiple observers of the same scope can coexist. `Instance<MessageObserver>` it
 all of them. There is no "replace the CDI bus with Kafka" — you add the Kafka bus
 alongside it and let consumers decide which delivery mechanism they want.
 
+### Choosing the right scope for your topology
+
+**Embedded Qhorus (same JVM):** `Scope.LOCAL` and CDI `ChannelBackend` beans are the
+right choice. Claudony embeds Qhorus — the conversation panel backend, harness observers,
+and the CDI event bus all fire in-process with zero serialisation overhead. This is the
+fast path and the correct default for any consumer that runs Qhorus as an embedded
+extension.
+
+**Separate Qhorus service (distinct process):** `Scope.LOCAL` CDI delivery does not
+cross process boundaries. A `ChannelBackend` CDI bean registered in the Qhorus process
+cannot push to a consumer running in a different process. This topology requires a
+`CLUSTER`-scoped `MessageObserver` — a `KafkaMessageBus`, `WebSocketMessageBus`,
+or webhook implementation that carries the event across the wire. Register it as an
+additional `@ApplicationScoped` bean; the CDI bus continues running alongside it.
+
+**Multi-node fleet (embedded, multiple instances):** Each node embeds its own Qhorus
+instance. CDI delivery fires per-node only — a message posted on Node B does not reach
+CDI observers on Node A. This is not just a CDI limitation: `ClaudonyChannelBackend.post()`
+on Node B only reaches browsers connected to Node B. `listChannels()` on Node A queries
+Node A's local store. The fan-out and observer mechanisms both operate within the node
+boundary. See the dedicated section below and casehubio/qhorus#162.
+
 ---
 
 ## A2A Integration
@@ -228,6 +250,45 @@ This architecture implements several established patterns:
 
 ---
 
+## Known Architectural Gap: Multi-node Embedded Fleet
+
+When Qhorus is embedded in multiple nodes (a Claudony fleet, a horizontally-scaled
+harness), each node has an independent channel store, CDI container, and set of
+registered backends.
+
+A message posted on Node B:
+- persists to **Node B's** channel store
+- fires `fanOut()` to **Node B's** registered `ChannelBackend` beans
+- fires `MessageObserver` (LOCAL scope) on **Node B**
+
+A browser connected to **Node A** receives nothing. Node A's `listChannels()` queries
+its own store — the message isn't there. Node A's `ClaudonyChannelBackend` was never
+called. The problem is not CDI-specific; it applies equally to the ChannelBackend
+fan-out path.
+
+Adding a `CLUSTER`-scoped `MessageObserver` on Node B helps only if Node A also
+subscribes to the same broker and re-fires its local backends on receipt — which
+requires a shared broker, deduplication logic, and careful ordering guarantees.
+
+Three resolution paths exist, none currently implemented:
+
+**Option 1 — Shared Qhorus service.** All nodes talk to a single Qhorus deployment.
+One channel store, one fan-out, no cross-node problem. Architecturally correct for
+fleet at scale; Qhorus already exposes its full API over MCP so this is operationally
+feasible. Requires a deployment model decision.
+
+**Option 2 — CLUSTER MessageObserver relay.** Node B publishes to Kafka; all nodes
+subscribe and re-fire their local backends. Requires a shared broker, deduplication,
+and consensus on event schema. Complex but keeps embedding topology.
+
+**Option 3 — Replicated channel store.** Shared database or distributed cache backing
+the channel store. `listChannels()` returns consistent data across nodes; push delivery
+still fires per-node only. Partial fix.
+
+Tracking: casehubio/qhorus#162 (root gap), casehubio/claudony#118 (Claudony fleet impact).
+
+---
+
 ## What Ships When
 
 | Capability | Status |
@@ -238,6 +299,7 @@ This architecture implements several established patterns:
 | `InProcessMessageBus` (CDI default, `Scope.LOCAL`) | 🔧 qhorus#153 |
 | `KafkaMessageBus`, `WebSocketMessageBus`, webhook impl | ⬜ future |
 | SmallRye / MicroProfile Reactive Messaging bridge | ⬜ future |
+| Cross-node delivery in multi-node embedded fleet | ⚠️ gap — qhorus#162 |
 
 The SPI is the seam. When a Claudony terminal on a remote machine needs push
 notification beyond what `ClaudonyChannelBackend` already provides, a
