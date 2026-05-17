@@ -20,6 +20,7 @@ import io.quarkus.arc.properties.UnlessBuildProperty;
 import jakarta.ws.rs.core.Response;
 
 import io.casehub.qhorus.api.gateway.ChannelRef;
+import io.casehub.qhorus.api.message.CommitmentState;
 import io.casehub.qhorus.runtime.channel.Channel;
 import io.casehub.qhorus.runtime.channel.ChannelService;
 import io.casehub.qhorus.runtime.config.QhorusConfig;
@@ -27,7 +28,7 @@ import io.casehub.qhorus.runtime.message.Commitment;
 import io.casehub.qhorus.runtime.message.CommitmentService;
 import io.casehub.qhorus.runtime.message.Message;
 import io.casehub.qhorus.runtime.message.MessageService;
-import io.casehub.qhorus.api.message.MessageType;
+
 /**
  * Optional A2A-compatible REST endpoint layer.
  *
@@ -37,7 +38,7 @@ import io.casehub.qhorus.api.message.MessageType;
  * <ul>
  * <li>{@code POST /a2a/message:send} — thin adapter delegating to {@link A2AChannelBackend}</li>
  * <li>{@code GET /a2a/tasks/{id}} — returns A2A Task status via CommitmentStore lookup,
- *     falling back to message-history deriveState; always includes history</li>
+ *     falling back to message-history via A2ATaskState.fromMessageHistory; always includes history</li>
  * </ul>
  *
  * <p>
@@ -151,9 +152,13 @@ public class A2AResource {
         Channel channel = channelService.findById(messages.get(0).channelId)
                 .orElseThrow(() -> new IllegalStateException("Channel not found for task " + taskId));
 
-        // Determine state: CommitmentStore first (durable), fallback to deriveState
+        // Determine state: CommitmentStore for non-OPEN states (terminal/acknowledged give
+        // definitive results); fall back to message history for OPEN commitments and the
+        // no-commitment case (message history is more informative, e.g. HANDOFF → "working").
         Commitment commitment = commitmentService.findByCorrelationId(taskId).orElse(null);
-        String state = (commitment != null) ? toA2AState(commitment.state) : deriveState(messages);
+        String state = (commitment != null && commitment.state != CommitmentState.OPEN)
+                ? A2ATaskState.fromCommitmentState(commitment.state)
+                : A2ATaskState.fromMessageHistory(messages);
 
         // Build history — ALWAYS include (existing tests depend on this)
         List<A2AMessage> history = messages.stream()
@@ -167,30 +172,6 @@ public class A2AResource {
                 .toList();
 
         return Response.ok(new Task(taskId, channel.name, new TaskStatus(state), history)).build();
-    }
-
-    private static String toA2AState(io.casehub.qhorus.api.message.CommitmentState state) {
-        return switch (state) {
-            case FULFILLED, DELEGATED -> "completed";
-            case FAILED, DECLINED, EXPIRED -> "failed";
-            case ACKNOWLEDGED -> "working";
-            case OPEN -> "submitted";
-        };
-    }
-
-    private static String deriveState(List<Message> messages) {
-        MessageType lastType = null;
-        for (Message m : messages) {
-            lastType = m.messageType;
-        }
-        if (lastType == null)
-            return "submitted";
-        return switch (lastType) {
-            case RESPONSE, DONE -> "completed";
-            case FAILURE, DECLINE -> "failed";
-            case STATUS -> "working";
-            default -> "submitted";
-        };
     }
 
     private static Response error400(String message) {

@@ -262,6 +262,42 @@ class A2AGetTaskTest {
                 .body("history", hasSize(2));  // QUERY + DONE messages
     }
 
+    @Test
+    void taskWithDelegatedState_isWorking() {
+        tools.createChannel("a2a-gt-del-1", "Test", "APPEND", null, null, null, null, null, null);
+        String taskId = UUID.randomUUID().toString();
+
+        // QUERY via A2A creates an OPEN commitment
+        sendA2A("a2a-gt-del-1", "user", "please delegate this", taskId);
+
+        // Agent sends HANDOFF — commitment transitions to DELEGATED
+        tools.sendMessage("a2a-gt-del-1", "agent", "handoff", "delegating to specialist", taskId,
+                null, null, "role:specialist", null);
+
+        given()
+                .when().get(TASKS_PATH + taskId)
+                .then()
+                .statusCode(200)
+                .body("status.state", equalTo("working"));
+    }
+
+    @Test
+    void taskWithHandoffMessageIsWorking() {
+        tools.createChannel("a2a-gt-del-2", "Test", "APPEND", null, null, null, null, null, null);
+        String taskId = UUID.randomUUID().toString();
+
+        // HANDOFF sent directly without a prior QUERY.
+        // Either path (fromMessageHistory or fromCommitmentState) returns "working".
+        tools.sendMessage("a2a-gt-del-2", "agent", "handoff", "delegated", taskId,
+                null, null, "role:specialist", null);
+
+        given()
+                .when().get(TASKS_PATH + taskId)
+                .then()
+                .statusCode(200)
+                .body("status.state", equalTo("working"));
+    }
+
     // -----------------------------------------------------------------------
     // End-to-end — full A2A lifecycle
     // -----------------------------------------------------------------------

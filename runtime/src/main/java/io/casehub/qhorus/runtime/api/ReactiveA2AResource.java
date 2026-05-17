@@ -17,8 +17,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import io.casehub.qhorus.api.gateway.ChannelRef;
-import io.casehub.qhorus.api.message.MessageType;
+import io.casehub.qhorus.api.message.CommitmentState;
 import io.casehub.qhorus.runtime.channel.Channel;
 import io.casehub.qhorus.runtime.channel.ChannelService;
 import io.casehub.qhorus.runtime.config.QhorusConfig;
@@ -156,9 +155,13 @@ public class ReactiveA2AResource {
                     .orElseThrow(() -> new IllegalStateException(
                             "Channel not found for task " + taskId));
 
-            // Determine state: CommitmentStore first (durable), fallback to deriveState
+            // Determine state: CommitmentStore for non-OPEN states (terminal/acknowledged give
+            // definitive results); fall back to message history for OPEN commitments and the
+            // no-commitment case (message history is more informative, e.g. HANDOFF → "working").
             Commitment commitment = commitmentService.findByCorrelationId(taskId).orElse(null);
-            String state = (commitment != null) ? toA2AState(commitment.state) : deriveState(messages);
+            String state = (commitment != null && commitment.state != CommitmentState.OPEN)
+                    ? A2ATaskState.fromCommitmentState(commitment.state)
+                    : A2ATaskState.fromMessageHistory(messages);
 
             // Build history — ALWAYS include
             List<A2AResource.A2AMessage> history = messages.stream()
@@ -178,30 +181,6 @@ public class ReactiveA2AResource {
                             new A2AResource.TaskStatus(state), history))
                     .build();
         });
-    }
-
-    private static String toA2AState(io.casehub.qhorus.api.message.CommitmentState state) {
-        return switch (state) {
-            case FULFILLED, DELEGATED -> "completed";
-            case FAILED, DECLINED, EXPIRED -> "failed";
-            case ACKNOWLEDGED -> "working";
-            case OPEN -> "submitted";
-        };
-    }
-
-    private static String deriveState(List<Message> messages) {
-        MessageType lastType = null;
-        for (Message m : messages) {
-            lastType = m.messageType;
-        }
-        if (lastType == null)
-            return "submitted";
-        return switch (lastType) {
-            case RESPONSE, DONE -> "completed";
-            case FAILURE, DECLINE -> "failed";
-            case STATUS -> "working";
-            default -> "submitted";
-        };
     }
 
     private static Response error400(String message) {
