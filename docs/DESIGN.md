@@ -39,6 +39,20 @@ future additions to `messageService.send()` extend `NormalisedMessage` without g
 the one field with a concrete backend use case. Other domain fields (`inReplyTo`,
 `artefactRefs`, `target`) are deferred to targeted changes when a backend needs them.
 
+### Notification SPI (api module)
+
+`MessageObserver` (`@FunctionalInterface`) and `MessageReceivedEvent` (plain record)
+form the transport-agnostic notification SPI. `Scope { LOCAL, CLUSTER }` makes topology
+intent explicit: `Scope.LOCAL` is the in-JVM fast path (zero serialisation, zero network);
+`Scope.CLUSTER` signals a network-crossing transport. Multiple implementations coexist via
+`Instance<MessageObserver>` — CDI today, Kafka or WebSocket tomorrow, without changing
+harness code or the api contract.
+
+`InProcessMessageBus` (`@DefaultBean @ApplicationScoped`) is the CDI fast path for
+embedded harnesses: `fireAsync(MessageReceivedEvent)`. `MessageObserverDispatcher`
+(package-private static utility) is shared by both blocking and reactive services,
+enforces EVENT content null (PP-20260508-90428f), and isolates observer failures.
+
 ---
 
 ## Technology Stack
@@ -122,6 +136,7 @@ All services are `@ApplicationScoped`. Mutating methods are `@Transactional`.
 **Key invariants:**
 - `MessageService.send()` always calls `ChannelService.updateLastActivity()` — channel `lastActivityAt` is always current.
 - `MessageService.send()` auto-fulfills, auto-declines, or auto-acknowledges the commitment state machine when `correlationId` is non-null. Human responses via `HumanParticipatingChannelBackend` now thread correlationId through `InboundHumanMessage` → `NormalisedMessage` → `ChannelGateway` → `MessageService`, enabling automatic commitment resolution without polling or bypass endpoints.
+- `MessageService.send()` dispatches to all registered `MessageObserver` beans after persistence. Dispatch fires before transaction commit — event payload is intentionally self-contained so observers never need to query qhorus message state synchronously.
 - `MessageService.pollAfter()` filters out `EVENT` messages — agent context is never polluted with telemetry.
 - `DataService.isGcEligible()` requires `complete = true AND claimCount = 0` — incomplete artefacts never GC-eligible.
 - `InstanceService.register()` replaces capability tags on every upsert — no stale tags accumulate.
