@@ -180,6 +180,15 @@ stores automatically — no database required for unit tests. See
 [ADR-0002](../adr/0002-persistence-abstraction-store-pattern.md) and
 [ADR-0003](../adr/0003-reactive-dual-stack.md).
 
+### Schema management
+
+Flyway manages the `qhorus` datasource schema via migrations in
+`classpath:db/migration/qhorus` — a scoped subdirectory that isolates qhorus
+migrations from other extensions on the same classpath. Version numbers are
+module-local (V1–V9 for domain tables, V1003 for the ledger subclass join).
+The named-datasource isolation of the migration directory mirrors the
+named-datasource isolation of the runtime connection pool.
+
 ---
 
 ## Configuration
