@@ -47,7 +47,9 @@ import io.casehub.qhorus.runtime.message.Commitment;
 import io.casehub.qhorus.runtime.message.Message;
 import io.casehub.qhorus.runtime.message.MessageTypePolicy;
 import io.casehub.qhorus.runtime.store.CommitmentStore;
+import io.casehub.qhorus.runtime.store.MessageStore;
 import io.casehub.qhorus.runtime.store.ReactiveMessageStore;
+import io.casehub.qhorus.runtime.store.query.MessageQuery;
 import io.casehub.qhorus.runtime.watchdog.ReactiveWatchdogService;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
@@ -115,6 +117,9 @@ public class ReactiveQhorusMcpTools extends QhorusMcpToolsBase {
 
     @Inject
     io.casehub.qhorus.runtime.ledger.LedgerWriteService blockingLedgerWriteService;
+
+    @Inject
+    MessageStore blockingMessageStore;
 
     @Inject
     MessageLedgerEntryRepository ledgerRepo;
@@ -1365,20 +1370,8 @@ public class ReactiveQhorusMcpTools extends QhorusMcpToolsBase {
 
         int effectiveLimit = (limit != null && limit > 0) ? Math.min(limit, 200) : 50;
 
-        List<Message> messages;
-        if (afterId != null) {
-            messages = Message.<Message> find(
-                    "channelId = ?1 AND id > ?2 ORDER BY id ASC",
-                    ch.id, afterId)
-                    .page(0, effectiveLimit)
-                    .list();
-        } else {
-            messages = Message.<Message> find(
-                    "channelId = ?1 ORDER BY id ASC",
-                    ch.id)
-                    .page(0, effectiveLimit)
-                    .list();
-        }
+        List<Message> messages = blockingMessageStore.scan(
+                MessageQuery.poll(ch.id, afterId, effectiveLimit));
 
         return messages.stream().map(this::toTimelineEntry).toList();
     }
