@@ -22,7 +22,7 @@ public class ReactiveWatchdogService {
 
     public Uni<Watchdog> register(String conditionType, String targetName, Integer thresholdSeconds,
             Integer thresholdCount, String notificationChannel, String createdBy) {
-        return Panache.withTransaction(() -> {
+        return Panache.withTransaction("qhorus", () -> {
             Watchdog w = new Watchdog();
             w.conditionType = conditionType;
             w.targetName = targetName;
@@ -43,7 +43,7 @@ public class ReactiveWatchdogService {
     }
 
     public Uni<Boolean> delete(UUID id) {
-        return Panache.withTransaction(() -> watchdogStore.find(id).flatMap(opt -> {
+        return Panache.withTransaction("qhorus", () -> watchdogStore.find(id).flatMap(opt -> {
             if (opt.isEmpty()) {
                 return Uni.createFrom().item(false);
             }

@@ -70,7 +70,7 @@ public class ReactiveLedgerWriteService {
             return Uni.createFrom().voidItem();
         }
 
-        return Panache.withTransaction(() -> reactiveRepo.findLatestBySubjectId(ch.id).flatMap(latestOpt -> {
+        return Panache.withTransaction("qhorus", () -> reactiveRepo.findLatestBySubjectId(ch.id).flatMap(latestOpt -> {
             final int sequenceNumber = latestOpt.map(e -> e.sequenceNumber + 1).orElse(1);
 
             final MessageLedgerEntry entry = new MessageLedgerEntry();

@@ -38,7 +38,7 @@ public class ReactiveInstanceService {
      */
     public Uni<Instance> register(String instanceId, String description, List<String> capabilityTags,
             String claudonySessionId, boolean readOnly) {
-        return Panache.withTransaction(() -> instanceStore.findByInstanceId(instanceId).flatMap(opt -> {
+        return Panache.withTransaction("qhorus", () -> instanceStore.findByInstanceId(instanceId).flatMap(opt -> {
             Instance instance = opt.orElse(null);
             if (instance == null) {
                 instance = new Instance();
@@ -58,7 +58,7 @@ public class ReactiveInstanceService {
     }
 
     public Uni<Void> heartbeat(String instanceId) {
-        return Panache.withTransaction(() -> instanceStore.findByInstanceId(instanceId)
+        return Panache.withTransaction("qhorus", () -> instanceStore.findByInstanceId(instanceId)
                 .invoke(opt -> opt.ifPresent(i -> {
                     i.lastSeen = Instant.now();
                     i.status = "online";

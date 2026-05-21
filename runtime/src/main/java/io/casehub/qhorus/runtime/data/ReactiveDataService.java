@@ -32,7 +32,7 @@ public class ReactiveDataService {
      */
     public Uni<SharedData> store(String key, String description, String createdBy,
             String content, boolean append, boolean lastChunk) {
-        return Panache.withTransaction(() -> dataStore.findByKey(key).flatMap(existing -> {
+        return Panache.withTransaction("qhorus", () -> dataStore.findByKey(key).flatMap(existing -> {
             SharedData data;
             if (existing.isEmpty() || !append) {
                 data = existing.orElse(new SharedData());
@@ -71,7 +71,7 @@ public class ReactiveDataService {
      * claims are created if called multiple times with the same (artefactId, instanceId) pair.
      */
     public Uni<Void> claim(UUID artefactId, UUID instanceId) {
-        return Panache.withTransaction(() -> dataStore.hasClaim(artefactId, instanceId).flatMap(exists -> {
+        return Panache.withTransaction("qhorus", () -> dataStore.hasClaim(artefactId, instanceId).flatMap(exists -> {
             if (exists) {
                 return Uni.createFrom().voidItem();
             }
@@ -83,7 +83,7 @@ public class ReactiveDataService {
     }
 
     public Uni<Void> release(UUID artefactId, UUID instanceId) {
-        return Panache.withTransaction(() -> dataStore.deleteClaim(artefactId, instanceId));
+        return Panache.withTransaction("qhorus", () -> dataStore.deleteClaim(artefactId, instanceId));
     }
 
     /**

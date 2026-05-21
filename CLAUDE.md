@@ -158,13 +158,22 @@ Qhorus has no dependency on CaseHub or Claudony — it is the independent commun
 casehub-qhorus/
 ├── api/                                 — Extension API module (SPI contracts, no runtime deps)
 │   └── src/main/java/io/casehub/qhorus/api/
-│       └── gateway/
-│           ├── ChannelBackend.java, AgentChannelBackend.java
-│           ├── HumanParticipatingChannelBackend.java, HumanObserverChannelBackend.java
-│           ├── InboundNormaliser.java, Senders.java (HUMAN = "human")
-│           ├── ChannelRef.java, OutboundMessage.java, InboundHumanMessage.java (externalSenderId, content, receivedAt, metadata, correlationId — nullable), ObserverSignal.java, NormalisedMessage.java (type, content, senderInstanceId, correlationId, inReplyTo, artefactRefs, target — last 4 nullable)
-│           ├── MessageObserver.java — @FunctionalInterface SPI: onMessage(MessageReceivedEvent); scope() default=LOCAL; Scope{LOCAL,CLUSTER}; any normal CDI scope valid (@ApplicationScoped, @RequestScoped, etc.); dispatcher closes each Instance.Handle in finally
-│           └── MessageReceivedEvent.java — record: channelName, channelId, messageType, senderId, correlationId (nullable), content (null for EVENT per PP-20260508-90428f)
+│       ├── channel/
+│       │   └── ChannelDetail.java       — DTO record: channel metadata (id, name, semantic, counts, limits, allowedTypes)
+│       ├── instance/
+│       │   └── InstanceInfo.java        — DTO record: instance metadata (instanceId, description, status, capabilities, lastSeen, readOnly)
+│       ├── gateway/
+│       │   ├── ChannelBackend.java, AgentChannelBackend.java
+│       │   ├── HumanParticipatingChannelBackend.java, HumanObserverChannelBackend.java
+│       │   ├── InboundNormaliser.java, Senders.java (HUMAN = "human")
+│       │   ├── ChannelRef.java, OutboundMessage.java, InboundHumanMessage.java (externalSenderId, content, receivedAt, metadata, correlationId — nullable), ObserverSignal.java, NormalisedMessage.java (type, content, senderInstanceId, correlationId, inReplyTo, artefactRefs, target — last 4 nullable)
+│       │   ├── MessageObserver.java — @FunctionalInterface SPI: onMessage(MessageReceivedEvent); scope() default=LOCAL; Scope{LOCAL,CLUSTER}; any normal CDI scope valid (@ApplicationScoped, @RequestScoped, etc.); dispatcher closes each Instance.Handle in finally
+│       │   └── MessageReceivedEvent.java — record: channelName, channelId, messageType, senderId, correlationId (nullable), content (null for EVENT per PP-20260508-90428f)
+│       └── message/
+│           ├── MessageResult.java       — DTO record: sent-message metadata (messageId, channelName, sender, type, correlationId, inReplyTo, artefactRefs, target)
+│           ├── MessageType.java         — (existing, unchanged)
+│           ├── MessageTypeViolationException.java — (existing, unchanged)
+│           └── CommitmentState.java     — (existing, unchanged)
 ├── runtime/                             — Extension runtime module
 │   └── src/main/java/io/casehub/qhorus/runtime/
 │       ├── config/QhorusConfig.java     — @ConfigMapping(prefix = "casehub.qhorus")
@@ -199,8 +208,9 @@ casehub-qhorus/
 │       │   ├── CommitmentAttestationPolicy.java     — @FunctionalInterface SPI: determines LedgerAttestation for DONE/FAILURE/DECLINE; AttestationOutcome record; Refs #123
 │       │   ├── StoredCommitmentAttestationPolicy.java — @DefaultBean: DONE→SOUND/0.7, FAILURE→FLAGGED/0.6, DECLINE→FLAGGED/0.4; config via casehub.qhorus.attestation.*
 │       │   └── ReactiveLedgerWriteService.java      — @Alternative reactive mirror of LedgerWriteService
+│       ├── QhorusEntityMapper.java      — @ApplicationScoped CDI bean: toChannelDetail(Channel, long), toTimelineEntry(Message); injects ObjectMapper — shared by QhorusMcpToolsBase and QhorusDashboardService
 │       ├── mcp/
-│       │   ├── QhorusMcpToolsBase.java  — abstract base: records, mappers (toLedgerEntryMap, toMessageSummary, etc.), validators; ledger query response records (ObligationChainSummary, CausalChainEntry, StalledObligation, ObligationStats, TelemetrySummary, ToolTelemetry)
+│       │   ├── QhorusMcpToolsBase.java  — abstract base: mappers (toLedgerEntryMap, toMessageSummary, etc.), validators; ledger query response records (ObligationChainSummary, CausalChainEntry, StalledObligation, ObligationStats, TelemetrySummary, ToolTelemetry); delegates toChannelDetail/toTimelineEntry to QhorusEntityMapper
 │       │   ├── QhorusMcpTools.java      — blocking @Tool methods (~50); @UnlessBuildProperty(casehub.qhorus.reactive.enabled); create_channel now accepts allowed_types as 9th optional param
 │       │   └── ReactiveQhorusMcpTools.java — reactive @Tool methods returning Uni<T>; @IfBuildProperty(casehub.qhorus.reactive.enabled); create_channel mirrors allowed_types param; delete_channel (reactive Uni<DeleteChannelResult>), get_instance and get_message (@Blocking)
 │       ├── watchdog/
@@ -273,7 +283,7 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/graalvm-25.jdk/Contents/Home \
 - `CommitmentStoreContractTest` (abstract, in `testing/src/test/`) has two runners: `InMemoryCommitmentStoreTest` (blocking) and `InMemoryReactiveCommitmentStoreTest` (reactive, wraps with `.await().indefinitely()`).
 - `quarkus.http.test-port=0` is set in test `application.properties` to use a random port — avoids conflicts when other Quarkus apps (e.g. Claudony) are running on 8081. Requires `mvn clean` to take effect after the property is added.
 - Tests run against a **named 'qhorus' datasource** (`quarkus.datasource.qhorus.*`) — the Qhorus named PU. A default datasource is also configured in test properties to satisfy casehub-ledger library beans that inject `@Default EntityManager` (library code; cannot be changed). Both PUs require schema generation: `quarkus.hibernate-orm.database.generation=drop-and-create` (default PU) and `quarkus.hibernate-orm.qhorus.database.generation=drop-and-create` (qhorus PU). `quarkus.datasource.qhorus.reactive=false` suppresses `FastBootHibernateReactivePersistenceProvider` for the named PU.
-- `Reactive*Store` / `InMemoryReactive*Store` follow the same seam as blocking stores. Unit tests use `InMemoryReactive*Store` from `casehub-qhorus-testing` via direct instantiation (no CDI) and `.await().indefinitely()` to unwrap. `ReactiveJpa*Store` integration tests use `@QuarkusTest @TestProfile @RunOnVertxContext UniAsserter` with `Panache.withTransaction()` wrapping mutations.
+- `Reactive*Store` / `InMemoryReactive*Store` follow the same seam as blocking stores. Unit tests use `InMemoryReactive*Store` from `casehub-qhorus-testing` via direct instantiation (no CDI) and `.await().indefinitely()` to unwrap. `ReactiveJpa*Store` integration tests use `@QuarkusTest @TestProfile @RunOnVertxContext UniAsserter` with `Panache.withTransaction("qhorus", ...)` wrapping mutations — always use the named-PU form; bare `Panache.withTransaction(() -> ...)` silently routes to the default PU and fails in consumer apps (e.g. Claudony) that configure only the named qhorus datasource.
 - Reactive JPA integration tests cannot use H2 — H2 has no native async driver and `vertx-jdbc-client` alone does not register a Quarkus reactive pool factory. Only `quarkus-reactive-pg-client` (PostgreSQL + Docker) enables reactive `@QuarkusTest`. Write reactive JPA tests as `@Disabled` until Docker is available.
 - `@IfBuildProperty` and `@UnlessBuildProperty` are BUILD-TIME annotations — setting `casehub.qhorus.reactive.enabled=true` in a `QuarkusTestProfile.getConfigOverrides()` DOES activate the reactive stack (when the profile restarts the Quarkus context, the override is applied at augmentation time for that context). The property must NOT appear in `application.properties` — BUILD_TIME-only properties there cause a SmallRye Config `SRCFG00050` runtime validation error. H2/JDBC tests omit the property entirely; `@WithDefault("false")` ensures the blocking stack is active.
 - `ReactiveTestProfile` (in `runtime/src/test/.../service/`) is for `@Disabled` reactive service runners requiring Docker/PostgreSQL. Setting `casehub.qhorus.reactive.enabled=true` in `getConfigOverrides()` activates reactive beans for the restarted context. `quarkus.arc.selected-alternatives` is NOT needed — reactive service beans are plain `@ApplicationScoped` (no `@Alternative`) and are included by `@IfBuildProperty` when the property is set. To enable reactive services in tests, add PostgreSQL Dev Services to `ReactiveTestProfile` and remove `@Disabled`.
