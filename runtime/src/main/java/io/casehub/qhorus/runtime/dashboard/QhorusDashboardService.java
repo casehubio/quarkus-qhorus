@@ -3,7 +3,6 @@ package io.casehub.qhorus.runtime.dashboard;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -14,9 +13,6 @@ import jakarta.enterprise.inject.Alternative;
 import jakarta.inject.Inject;
 
 import io.quarkus.arc.properties.IfBuildProperty;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.casehub.ledger.api.model.ActorType;
 import io.casehub.qhorus.api.message.MessageType;
@@ -39,7 +35,7 @@ public class QhorusDashboardService {
     @Inject ReactiveInstanceService instanceService;
     @Inject ReactiveMessageService messageService;
     @Inject ReactiveMessageStore messageStore;
-    @Inject ObjectMapper mapper;
+    @Inject io.casehub.qhorus.runtime.QhorusEntityMapper entityMapper;
 
     // ── Response types ────────────────────────────────────────────────────────
     // Field names match QhorusMcpToolsBase DTO shapes for dashboard JS compat.
@@ -92,7 +88,7 @@ public class QhorusDashboardService {
             if (opt.isEmpty()) return Uni.createFrom().item(List.of());
             int effectiveLimit = Math.min(Math.max(limit, 1), 200);
             return messageStore.scan(MessageQuery.poll(opt.get().id, afterId, effectiveLimit))
-                    .map(msgs -> msgs.stream().map(this::toTimelineEntry).toList());
+                    .map(msgs -> msgs.stream().map(entityMapper::toTimelineEntry).toList());
         });
     }
 
@@ -105,7 +101,7 @@ public class QhorusDashboardService {
                     .map(ch -> messageStore.scan(MessageQuery.poll(ch.id, null, perChannel))
                             .map(msgs -> msgs.stream()
                                     .map(m -> {
-                                        Map<String, Object> tagged = new HashMap<>(toTimelineEntry(m));
+                                        Map<String, Object> tagged = new HashMap<>(entityMapper.toTimelineEntry(m));
                                         tagged.put("channel", ch.name);
                                         return tagged;
                                     })
@@ -147,7 +143,6 @@ public class QhorusDashboardService {
     }
 
     // ── Private mapping ───────────────────────────────────────────────────────
-    // Replicated from QhorusMcpToolsBase. Deduplication tracked in qhorus#176.
 
     private ChannelView toChannelView(Channel ch, int count) {
         return new ChannelView(
@@ -159,42 +154,4 @@ public class QhorusDashboardService {
                 ch.rateLimitPerChannel, ch.rateLimitPerInstance, ch.allowedTypes);
     }
 
-    private Map<String, Object> toTimelineEntry(Message m) {
-        Map<String, Object> entry = new LinkedHashMap<>();
-        entry.put("id", m.id);
-        if (m.messageType == MessageType.EVENT) {
-            entry.put("type", "EVENT");
-            entry.put("created_at", m.createdAt != null ? m.createdAt.toString() : null);
-            entry.put("occurred_at", m.createdAt != null ? m.createdAt.toString() : null);
-            entry.put("agent_id", m.sender);
-            entry.put("message_type", null);
-            String toolName = null;
-            Long durationMs = null;
-            Long tokenCount = null;
-            if (m.content != null) {
-                try {
-                    JsonNode node = mapper.readTree(m.content);
-                    JsonNode tn = node.get("tool_name");
-                    if (tn != null && tn.isTextual()) toolName = tn.asText();
-                    JsonNode dm = node.get("duration_ms");
-                    if (dm != null && dm.isNumber()) durationMs = dm.asLong();
-                    JsonNode tc = node.get("token_count");
-                    if (tc != null && tc.isNumber()) tokenCount = tc.asLong();
-                } catch (Exception ignored) {
-                }
-            }
-            entry.put("tool_name", toolName);
-            entry.put("duration_ms", durationMs);
-            entry.put("token_count", tokenCount);
-        } else {
-            entry.put("type", "MESSAGE");
-            entry.put("created_at", m.createdAt != null ? m.createdAt.toString() : null);
-            entry.put("sender", m.sender);
-            entry.put("message_type", m.messageType != null ? m.messageType.name().toLowerCase() : null);
-            entry.put("content", m.content);
-            entry.put("correlation_id", m.correlationId);
-            entry.put("tool_name", null);
-        }
-        return entry;
-    }
 }

@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.casehub.qhorus.runtime.QhorusEntityMapper;
+
 import io.casehub.qhorus.api.channel.ChannelSemantic;
 import io.casehub.qhorus.api.message.MessageType;
 import io.casehub.qhorus.runtime.channel.Channel;
@@ -47,7 +49,7 @@ class QhorusDashboardServiceTest {
         service.instanceService = instanceService;
         service.messageService = messageService;
         service.messageStore = messageStore;
-        service.mapper = new ObjectMapper();
+        service.entityMapper = new QhorusEntityMapper(new ObjectMapper());
         reset(channelService, instanceService, messageService, messageStore);
     }
 
